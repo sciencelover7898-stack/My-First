@@ -1,0 +1,448 @@
+html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator OS | 12 Week Year</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        stone: { 950: '#0c0a09' },
+                        gold: { 500: '#d4af37' }
+                    },
+                    fontFamily: { sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { @apply bg-stone-300 dark:bg-stone-700 rounded-full; }
+
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .glass { @apply bg-white/80 dark:bg-stone-900/80 backdrop-blur-xl border-b border-stone-200 dark:border-stone-800; }
+        .card { @apply bg-white dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-[2.5rem] transition-all duration-300; }
+        .nav-active { @apply text-stone-900 dark:text-white border-b-2 border-stone-900 dark:border-white font-extrabold; }
+        
+        .current-block { @apply ring-2 ring-stone-900 dark:ring-white scale-[1.01] bg-stone-50 dark:bg-stone-900 shadow-xl; }
+        .task-checked { text-decoration: line-through; opacity: 0.4; }
+        
+        input:focus, textarea:focus, select:focus { outline: none; }
+    </style>
+</head>
+<body class="bg-[#fafaf9] dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased selection:bg-stone-200">
+
+    <!-- HUD NAVIGATION -->
+    <nav class="sticky top-0 z-50 glass h-16 flex items-center px-4 md:px-8 justify-between">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="switchTab('today')">
+                <div class="w-8 h-8 bg-stone-900 dark:bg-white rounded-lg flex items-center justify-center text-white dark:text-stone-900 font-black text-[10px]">O·S</div>
+                <h1 class="font-black tracking-tighter text-sm uppercase hidden sm:block text-stone-900 dark:text-white">Operator OS</h1>
+            </div>
+            <div class="hidden lg:flex items-center gap-4 border-l border-stone-200 dark:border-stone-800 pl-6">
+                <div>
+                    <p class="text-[8px] font-black text-stone-400 uppercase tracking-widest leading-none mb-1">Status</p>
+                    <p class="text-[10px] font-extrabold text-stone-700 dark:text-stone-300 uppercase tracking-tight">Active Sprint: Jan 19 – Apr 13</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button onclick="toggleDarkMode()" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors">
+                <span class="dark:hidden">🌙</span><span class="hidden dark:inline">☀️</span>
+            </button>
+            <div class="bg-stone-100 dark:bg-stone-900 px-4 py-1.5 rounded-full flex items-center gap-2 border border-stone-200 dark:border-stone-800">
+                <span class="text-[9px] font-black text-stone-400 uppercase">Exec:</span>
+                <span id="nav-global-score" class="text-xs font-black">0%</span>
+            </div>
+            <button onclick="toggleQuickAdd()" class="bg-stone-900 dark:bg-white text-white dark:text-stone-900 w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-all">
+                <span class="text-xl font-light">+</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- QUICK ADD MODAL -->
+    <div id="qa-modal" class="hidden fixed inset-0 z-[100] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-stone-950 w-full max-w-md rounded-[3rem] p-10 shadow-2xl border border-stone-200 dark:border-stone-800 animate-fade-in">
+            <div class="flex justify-between items-center mb-8">
+                <h3 class="text-2xl font-black italic tracking-tighter text-stone-900 dark:text-white">Quick Capture</h3>
+                <button onclick="toggleQuickAdd()" class="text-stone-300 hover:text-stone-900 text-3xl transition-colors">×</button>
+            </div>
+            <div class="space-y-5">
+                <select id="qa-type" class="w-full bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl px-5 py-4 text-sm font-bold dark:text-white">
+                    <option value="log">📦 Build Entry (Goal 1/3)</option>
+                    <option value="content">✍️ Content Idea (Goal 2)</option>
+                    <option value="task">✅ Urgent Task</option>
+                </select>
+                <textarea id="qa-input" rows="3" class="w-full bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl px-5 py-4 text-sm font-medium dark:text-white" placeholder="Details..."></textarea>
+                <button onclick="saveQuickAdd()" class="w-full bg-stone-900 dark:bg-white text-white dark:text-stone-900 py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all">Commit Entry</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 md:px-8 py-10">
+
+        <!-- TAB NAVIGATION -->
+        <div class="flex gap-10 border-b border-stone-200 dark:border-stone-800 mb-10 overflow-x-auto scrollbar-hide">
+            <button onclick="switchTab('today')" id="tab-today" class="pb-5 text-sm font-black uppercase tracking-widest nav-active">Today</button>
+            <button onclick="switchTab('strategy')" id="tab-strategy" class="pb-5 text-sm font-black uppercase tracking-widest text-stone-400">Strategic Intent</button>
+            <button onclick="switchTab('week')" id="tab-week" class="pb-5 text-sm font-black uppercase tracking-widest text-stone-400">Roadmap</button>
+            <button onclick="switchTab('vault')" id="tab-vault" class="pb-5 text-sm font-black uppercase tracking-widest text-stone-400">The Vault</button>
+            <button onclick="switchTab('review')" id="tab-review" class="pb-5 text-sm font-black uppercase tracking-widest text-stone-400 text-stone-400">Review</button>
+        </div>
+
+        <!-- VIEW: STRATEGIC INTENT -->
+        <div id="view-strategy" class="hidden space-y-12 animate-fade-in">
+            <section class="bg-stone-900 text-white rounded-[3rem] p-12 relative overflow-hidden shadow-2xl">
+                <div class="relative z-10">
+                    <h2 class="text-xs font-black uppercase tracking-[0.4em] text-stone-500 mb-4">The North Star</h2>
+                    <h1 class="text-5xl font-black italic tracking-tighter mb-6 leading-tight">Launch "Client Delivery OS" &<br>Secure 3 High-Ticket Projects.</h1>
+                    <div class="flex flex-wrap gap-8 text-[11px] font-black uppercase tracking-widest text-stone-400">
+                        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-gold-500"></span> Jan 19 – Apr 13</div>
+                        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Sprint 1 of 2026</div>
+                    </div>
+                </div>
+                <div class="absolute -bottom-20 -right-20 w-96 h-96 bg-stone-800 rounded-full blur-[120px] opacity-40"></div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="card p-10 border-t-4 border-t-blue-500 flex flex-col">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl text-2xl">🚀</div>
+                        <span class="text-[10px] font-black text-stone-400 uppercase tracking-widest">Goal 01</span>
+                    </div>
+                    <h3 class="text-2xl font-black italic tracking-tighter mb-4">Products & Ops Systems</h3>
+                    <p class="text-stone-500 text-sm font-medium leading-relaxed mb-8 flex-grow">
+                        Focus on money and career. Build the **Client Delivery OS** Notion template. Document every internal system so the business can scale without manual repair.
+                    </p>
+                    <div class="space-y-4 pt-8 border-t dark:border-stone-800">
+                        <div class="flex justify-between text-sm"><span>Total Revenue</span><span class="font-bold">$500+</span></div>
+                        <div class="flex justify-between text-sm"><span>Launch Date</span><span class="font-bold">Week 10</span></div>
+                    </div>
+                </div>
+
+                <div class="card p-10 border-t-4 border-t-purple-500 flex flex-col">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="p-3 bg-purple-50 dark:bg-purple-900/20 text-purple-600 rounded-2xl text-2xl">📢</div>
+                        <span class="text-[10px] font-black text-stone-400 uppercase tracking-widest">Goal 02</span>
+                    </div>
+                    <h3 class="text-2xl font-black italic tracking-tighter mb-4">Brand & Audience</h3>
+                    <p class="text-stone-500 text-sm font-medium leading-relaxed mb-8 flex-grow">
+                        Grow X and Threads by building in public. Use daily proof of work to build authority, trust, and relatability with the global market.
+                    </p>
+                    <div class="space-y-4 pt-8 border-t dark:border-stone-800">
+                        <div class="flex justify-between text-sm"><span>X Followers</span><span class="font-bold">2,000+</span></div>
+                        <div class="flex justify-between text-sm"><span>Posting Cycle</span><span class="font-bold">Daily Post</span></div>
+                    </div>
+                </div>
+
+                <div class="card p-10 border-t-4 border-t-emerald-500 flex flex-col">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-2xl text-2xl">⚙️</div>
+                        <span class="text-[10px] font-black text-stone-400 uppercase tracking-widest">Goal 03</span>
+                    </div>
+                    <h3 class="text-2xl font-black italic tracking-tighter mb-4">Skill & Learning</h3>
+                    <p class="text-stone-500 text-sm font-medium leading-relaxed mb-8 flex-grow">
+                        Professionalize the operator mindset. Learn one ops concept weekly and apply it immediately to land 3 high-ticket client engagements.
+                    </p>
+                    <div class="space-y-4 pt-8 border-t dark:border-stone-800">
+                        <div class="flex justify-between text-sm"><span>Client Projects</span><span class="font-bold">3 Landed</span></div>
+                        <div class="flex justify-between text-sm"><span>SOPs Created</span><span class="font-bold">10+ Done</span></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW: TODAY COCKPIT -->
+        <div id="view-today" class="space-y-10 animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                <div class="lg:col-span-7 space-y-6">
+                    <div class="flex justify-between items-end px-2">
+                        <div>
+                            <h2 class="text-3xl font-black italic tracking-tighter uppercase text-stone-900 dark:text-white">Daily Routine</h2>
+                            <p class="text-stone-400 text-xs font-bold uppercase tracking-widest mt-1">Live Tracking</p>
+                        </div>
+                        <div id="live-clock" class="text-xs font-black bg-stone-900 text-white px-4 py-2 rounded-full shadow-lg transition-all">00:00:00</div>
+                    </div>
+                    <div class="space-y-3" id="timetable-container"></div>
+                </div>
+
+                <div class="lg:col-span-5 space-y-8">
+                    <div class="bg-stone-900 dark:bg-stone-950 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden border border-stone-800">
+                        <h3 class="text-xl font-black italic tracking-tighter mb-8 relative z-10 uppercase">Execution Map</h3>
+                        <div class="space-y-4 relative z-10">
+                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+                                <div class="w-12 text-center border-r border-white/10 pr-4">
+                                    <p class="text-[9px] font-black text-blue-400 uppercase">Block 1</p>
+                                </div>
+                                <input type="text" id="top-task-1" class="bg-transparent w-full text-sm font-bold outline-none placeholder:text-stone-700" placeholder="Product Asset focus...">
+                            </div>
+                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+                                <div class="w-12 text-center border-r border-white/10 pr-4">
+                                    <p class="text-[9px] font-black text-blue-400 uppercase">Block 2</p>
+                                </div>
+                                <input type="text" id="top-task-2" class="bg-transparent w-full text-sm font-bold outline-none placeholder:text-stone-700" placeholder="Product System focus...">
+                            </div>
+                            <div class="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+                                <div class="w-12 text-center border-r border-white/10 pr-4">
+                                    <p class="text-[9px] font-black text-purple-400 uppercase font-bold">Social</p>
+                                </div>
+                                <input type="text" id="top-task-3" class="bg-transparent w-full text-sm font-bold outline-none placeholder:text-stone-700" placeholder="X / Threads content...">
+                            </div>
+                        </div>
+                        <div class="absolute -bottom-20 -right-20 w-64 h-64 bg-stone-800 rounded-full blur-[80px] opacity-30"></div>
+                    </div>
+                    <div class="card p-10">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-black tracking-tight uppercase">Recent Proof</h3>
+                            <button onclick="switchTab('vault')" class="text-[10px] font-black text-stone-400 hover:text-stone-900 transition-colors uppercase underline">Vault</button>
+                        </div>
+                        <div id="today-log-feed" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: ROADMAP -->
+        <div id="view-week" class="hidden animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-10">
+                <div class="card p-8"><h3 class="text-[10px] font-black uppercase text-stone-400 mb-6 tracking-widest">Select Week</h3><div class="grid grid-cols-4 gap-2" id="week-selector-grid"></div></div>
+                <div class="lg:col-span-3">
+                    <div class="card p-12 border-2 border-stone-900 dark:border-white shadow-2xl">
+                        <div class="flex justify-between items-start mb-10">
+                            <div><h2 class="text-4xl font-black italic tracking-tighter uppercase" id="week-title-display">Week 1</h2><p class="text-stone-400 font-bold text-sm mt-1" id="week-theme-display">Theme</p></div>
+                            <div class="text-right"><p id="week-score-display" class="text-4xl font-black">0%</p><p class="text-[10px] font-black uppercase text-stone-400 tracking-widest">Success</p></div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-16">
+                            <div class="space-y-10">
+                                <div><h4 class="text-[11px] font-black uppercase tracking-widest text-blue-500 mb-6">Goal 1: Products</h4><div id="tasks-g1" class="space-y-5"></div></div>
+                                <div><h4 class="text-[11px] font-black uppercase tracking-widest text-emerald-500 mb-6">Goal 3: Skill</h4><div id="tasks-g3" class="space-y-5"></div></div>
+                            </div>
+                            <div class="space-y-10">
+                                <div><h4 class="text-[11px] font-black uppercase tracking-widest text-purple-500 mb-6">Goal 2: Brand</h4><div id="tasks-g2" class="space-y-5"></div></div>
+                                <div class="bg-stone-50 dark:bg-stone-900 p-6 rounded-3xl border border-stone-200 dark:border-stone-800"><h4 class="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-4">Weekly Reflections</h4><textarea id="week-reflection" oninput="saveReflection()" class="w-full bg-white dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 text-xs font-medium dark:text-white min-h-[120px]"></textarea></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: VAULT -->
+        <div id="view-vault" class="hidden animate-fade-in space-y-12">
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="card p-8 text-center"><p class="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Assets Shipped</p><p id="vault-shipped-total" class="text-4xl font-black">0</p></div>
+                <div class="card p-8 text-center"><p class="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Delta</p><p id="vault-delta" class="text-4xl font-black text-emerald-600">+0%</p></div>
+                <div class="card p-8 flex flex-col items-center justify-center gap-2"><button onclick="exportState()" class="text-[10px] font-black uppercase tracking-widest border-b border-stone-900 dark:border-white">Export Backup</button></div>
+            </section>
+            <section>
+                <div class="flex justify-between items-end mb-10"><div><h2 class="text-3xl font-black italic tracking-tighter uppercase">Pipeline</h2></div><button onclick="askAI('content')" class="bg-stone-900 dark:bg-white text-white dark:text-stone-900 px-8 py-3 rounded-full text-[10px] font-black uppercase">✨ AI Draft Lab</button></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5" id="pipeline-grid"></div>
+            </section>
+            <section><h2 class="text-3xl font-black italic tracking-tighter uppercase mb-10">Build Log</h2><div class="card overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-stone-50 dark:bg-stone-900 border-b dark:border-stone-800"><tr><th class="px-10 py-5">Date</th><th class="px-10 py-5">Asset Entry</th><th class="px-10 py-5">Type</th></tr></thead><tbody id="full-log-body" class="divide-y dark:divide-stone-800"></tbody></table></div></section>
+        </div>
+
+        <!-- VIEW: ANALYTICS / REVIEW -->
+        <div id="view-review" class="hidden animate-fade-in space-y-12">
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div class="lg:col-span-2 card p-10 min-h-[400px]"><h3 class="text-xl font-black italic tracking-tighter uppercase mb-8">Performance Analytics</h3><div class="relative h-[300px] w-full"><canvas id="perfChart"></canvas></div></div>
+                <div class="card p-10 bg-stone-900 text-white shadow-2xl flex flex-col"><h3 class="text-2xl font-black italic tracking-tighter mb-6 uppercase">Sunday Audit</h3><div class="space-y-8 flex-grow"><div><p class="text-[10px] font-black text-stone-500 uppercase mb-2">Rolling Avg</p><p id="stat-rolling-avg" class="text-4xl font-black text-gold-500">0%</p></div><div><input type="range" min="0" max="100" id="review-score-range" class="w-full h-1 bg-stone-800 rounded-lg appearance-none accent-white mb-2"><div class="flex justify-between text-xs font-bold text-stone-400"><span>Score</span> <span>Target: 85%</span></div><div class="mt-2 text-center text-xs font-bold" id="review-score-label">50%</div></div></div><button onclick="submitAudit()" class="w-full bg-white text-stone-900 py-6 rounded-3xl font-black text-[10px] uppercase hover:scale-105 transition-all mt-10">Commit Sunday Review</button></div>
+            </section>
+        </div>
+
+    </main>
+
+    <!-- AI OVERLAY -->
+    <div id="ai-overlay" class="hidden fixed inset-0 z-[150] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4"><div class="bg-stone-900 text-white w-full max-w-xl rounded-[3rem] p-12 relative border border-stone-800 shadow-2xl"><button onclick="closeAI()" class="absolute top-10 right-10 text-stone-600 hover:text-white text-2xl transition-colors">✕</button><div id="ai-loading"><div class="w-12 h-12 rounded-full border-4 border-t-white border-stone-800 animate-spin mb-6"></div><h3 class="text-xl font-bold italic">Advisor Analysis...</h3></div><div id="ai-response" class="hidden space-y-8"><h3 id="ai-response-title" class="text-2xl font-black italic tracking-tighter">AI Insight</h3><div id="ai-content" class="text-sm text-stone-400 leading-relaxed max-h-[50vh] overflow-y-auto whitespace-pre-wrap scrollbar-hide"></div><button onclick="closeAI()" class="w-full bg-white text-stone-900 py-5 rounded-2xl font-black text-[10px] uppercase">Dismiss</button></div></div></div>
+
+    <script>
+        const timetable = [
+            { start: "06:30", end: "07:00", label: "Wake up + Priming", goal: "Energy", emoji: "🌅", desc: "Energy protection. No phone scrolls." },
+            { start: "07:00", end: "08:00", label: "Workout", goal: "Foundation", emoji: "💪", desc: "Non-negotiable morning health." },
+            { start: "08:00", end: "09:00", label: "Planning / Thinking", goal: "System", emoji: "☕", desc: "Review Top 3. Strategic start." },
+            { start: "09:00", end: "10:30", label: "Deep Work Block 1", goal: "Goal 1", emoji: "🧠", desc: "Product/System Build. Phone OFF." },
+            { start: "10:30", end: "10:45", label: "Break 1", goal: "Recovery", emoji: "🚶", desc: "Water / Stretch. Reset." },
+            { start: "10:45", end: "12:15", label: "Deep Work Block 2", goal: "Goal 1", emoji: "🔧", desc: "Systems & Client-ready work." },
+            { start: "12:15", end: "13:00", label: "Lunch", goal: "Recovery", emoji: "🍽", desc: "Full disconnect." },
+            { start: "13:00", end: "14:15", label: "Learning + Application", goal: "Goal 3", emoji: "📘", desc: "One concept applied immediately." },
+            { start: "14:30", end: "15:45", label: "Build Cycle", goal: "Goal 1", emoji: "🧱", desc: "Finish tasks. Polish systems." },
+            { start: "15:45", end: "16:30", label: "Brand Prep", goal: "Goal 2", emoji: "🔹", desc: "Draft social posts / engage." },
+            { start: "16:30", end: "19:30", label: "Stadium + Friends", goal: "Recovery", emoji: "🏟", desc: "Active social recovery." },
+            { start: "19:30", end: "20:30", label: "Dinner + Wind Down", goal: "Recovery", emoji: "🍽", desc: "Relax. No heavy thinking." },
+            { start: "20:30", end: "22:00", label: "Posting & Content", goal: "Goal 2", emoji: "🕊", desc: "Post X/Threads. Engage peak market." },
+            { start: "22:00", end: "22:30", label: "Book Reading", goal: "Goal 3", emoji: "📖", desc: "Business / Psychology. No phone." }
+        ];
+
+        const weeksData = [
+            { id: 1, theme: "Foundation & Vision", goals: { g1: ["Vision Mapping", "Competitor Audit", "Project Setup"], g2: ["Bio Optimization", "5 Content Pillars", "Engagement Warmup"], g3: ["Order E-Myth", "Ops Baseline Audit", "Time-Blocks"] } },
+            { id: 2, theme: "Momentum Building", goals: { g1: ["Core DB Build", "Project Dashboard", "Build Snippets"], g2: ["Daily X Post", "Daily Threads Note", "15m Replies"], g3: ["Content SOP Draft", "Task Checklist", "Batch Timing Audit"] } },
+            { id: 3, theme: "Advanced Systems", goals: { g1: ["Template Buttons", "Logic Formulas", "Automation Setup"], g2: ["Run X Poll", "Weekly LI Update", "Community Interaction"], g3: ["Offer Draft", "Onboarding Check", "Automation Review"] } },
+            { id: 4, theme: "Draft & Walkthrough", goals: { g1: ["Product v1", "UX Flow Rehearsal", "Friction Removal"], g2: ["Deep-Dive X Thread", "Growth Audit Month 1", "Threads BTS"], g3: ["Lessons Summary", "Outreach Messaging", "Tool Optimization"] } },
+            { id: 5, theme: "Beta & Validation", goals: { g1: ["Recruit Beta", "User Guide", "Feedback Loop"], g2: ["5 Lessons Thread", "Vlog Snippet", "DM Engagement"], g3: ["Service Outreach", "Pitch 2 Leads", "Case Study Start"] } },
+            { id: 6, theme: "Polish & Scale", goals: { g1: ["Visual Polish", "Finalize Sales Copy", "Gumroad Config"], g2: ["Educational LI Post", "IG Story Narrative", "Shoutout Peer"], g3: ["Secure Client #1", "Apply Ops to Client", "Efficiency Review"] } },
+            { id: 7, theme: "Pre-Launch Blitz", goals: { g1: ["Countdown Thread", "Teaser Video", "Launch Date set"], g2: ["Problem/Solution Post", "Affiliate Outreach", "Engagement Giveaway"], g3: ["Scale Service Range", "Join Ops Slack/Groups", "Refine SOP v2"] } },
+            { id: 8, theme: "Hype & Admin", goals: { g1: ["Feature Sneak Peek", "Setup FAQ Support", "Revenue vs Price check"], g2: ["Poll for feedback", "Plan W10 blitz", "BTS Day in Life Reel"], g3: ["Secure Client #2", "Bookkeeping Sync", "Operator Mindset Blog"] } },
+            { id: 9, theme: "Anticipation", goals: { g1: ["Purchase Dry-Run", "Finalize Asset List", "Story Threads"], g2: ["Countdown post", "Contest Launch", "Draft Launch Posts"], g3: ["Finish case study", "Secure Client #3", "Scaling Roadmap"] } },
+            { id: 10, theme: "LAUNCH WEEK", goals: { g1: ["OFFICIAL LAUNCH", "Support Monitoring", "Milestone Update"], g2: ["Pinned Social post", "Live Q&A Space", "Active Response"], g3: ["Ops Reflection", "Finalize Delivery", "Journal Shift"] } },
+            { id: 11, theme: "Analysis", goals: { g1: ["Buyer Follow-up", "Traffic Source Audit", "v1.1 Update Plan"], g2: ["Post-Launch recap", "Newsletter collection", "Share growth wins"], g3: ["System audit", "Draft Q2 plan", "Hand-off docs"] } },
+            { id: 12, theme: "Review & Reset", goals: { g1: ["Evergreen Funnel", "Add Proof Assets", "Celebrate Completion"], g2: ["12-Week Recap Thread", "Announce next steps", "Thank Community"], g3: ["Compile Playbook", "Update Portfolio", "Final evaluation"] } }
+        ];
+
+        let state = JSON.parse(localStorage.getItem('operator_os_v13')) || {
+            currentWeek: 1, completedTasks: {}, logs: [], pipeline: [], top3: ["", "", ""], reflections: {}, darkMode: false, metrics: { shipped: 0 }
+        };
+
+        const apiKey = "";
+        let chartInstance = null;
+
+        function init() {
+            if (state.darkMode) document.documentElement.classList.add('dark');
+            updateClock(); setInterval(updateClock, 1000);
+            renderTimetable(); renderWeekSelector(); renderWeekTasks(state.currentWeek);
+            renderLogs(); renderPipeline(); updateGlobalStats();
+            ['top-task-1', 'top-task-2', 'top-task-3'].forEach((id, i) => {
+                const el = document.getElementById(id);
+                if(el) { el.value = state.top3[i] || ""; el.oninput = (e) => { state.top3[i] = e.target.value; save(); }; }
+            });
+            const slider = document.getElementById('review-score-range');
+            const label = document.getElementById('review-score-label');
+            if(slider && label) {
+                slider.oninput = (e) => { label.textContent = e.target.value + "%"; };
+            }
+        }
+
+        function save() { localStorage.setItem('operator_os_v13', JSON.stringify(state)); updateGlobalStats(); }
+        function updateClock() { const now = new Date(); document.getElementById('live-clock').textContent = now.toLocaleTimeString('en-US', { hour12: false }); if (now.getSeconds() === 0) renderTimetable(); }
+        function toggleDarkMode() { state.darkMode = !state.darkMode; document.documentElement.classList.toggle('dark'); save(); if(chartInstance) updateChart(); }
+
+        function switchTab(tab) {
+            ['today', 'strategy', 'week', 'vault', 'review'].forEach(t => {
+                const v = document.getElementById(`view-${t}`); const b = document.getElementById(`tab-${t}`);
+                if(v) v.classList.add('hidden');
+                if(b) { b.classList.remove('nav-active'); b.classList.add('text-stone-400'); }
+            });
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            const ab = document.getElementById(`tab-${tab}`);
+            if(ab) { ab.classList.add('nav-active'); ab.classList.remove('text-stone-400'); }
+            if(tab === 'review') setTimeout(updateChart, 100);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderTimetable() {
+            const container = document.getElementById('timetable-container');
+            const now = new Date(); const currentMins = now.getHours() * 60 + now.getMinutes();
+            container.innerHTML = timetable.map(block => {
+                const [hStart, mStart] = block.start.split(':').map(Number);
+                const [hEnd, mEnd] = block.end.split(':').map(Number);
+                const startMins = hStart * 60 + mStart;
+                const endMins = hEnd * 60 + mEnd;
+                const isActive = currentMins >= startMins && currentMins < endMins;
+                return `<div class="flex items-center gap-4 group"><span class="w-12 text-[9px] font-black text-stone-400 uppercase text-right">${block.start}</span><div class="flex-grow p-5 card ${isActive ? 'current-block ring-stone-900 border-stone-900 dark:ring-white dark:border-white' : ''}"><div class="flex justify-between items-start"><div><div class="flex items-center gap-2 mb-1"><span class="text-sm">${block.emoji}</span><span class="text-xs font-black uppercase tracking-tight">${block.label}</span></div><p class="text-[10px] text-stone-500 italic font-medium">${block.desc}</p></div><span class="text-[8px] font-black px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-400 uppercase">${block.goal}</span></div></div></div>`;
+            }).join('');
+        }
+
+        function renderWeekSelector() {
+            const grid = document.getElementById('week-selector-grid');
+            grid.innerHTML = Array.from({length: 12}, (_, i) => {
+                const id = i + 1; const active = id === state.currentWeek;
+                return `<button onclick="setWeek(${id})" class="w-full aspect-square rounded-xl border flex items-center justify-center text-[10px] font-black transition-all ${active ? 'bg-stone-900 dark:bg-white border-stone-900 dark:border-white text-white dark:text-stone-900 shadow-lg' : 'bg-white dark:bg-stone-950 border-stone-100 dark:border-stone-800 text-stone-400 hover:border-stone-200'}">${id}</button>`;
+            }).join('');
+        }
+
+        function setWeek(id) { state.currentWeek = id; save(); renderWeekSelector(); renderWeekTasks(id); }
+
+        function renderWeekTasks(id) {
+            const week = weeksData.find(w => w.id === id);
+            document.getElementById('week-title-display').textContent = `Week ${id}`;
+            document.getElementById('week-theme-display').textContent = `Theme: ${week.theme}`;
+            document.getElementById('week-reflection').value = state.reflections[id] || "";
+            const renderList = (gid, containerId) => {
+                const tasks = week.goals[gid];
+                const container = document.getElementById(containerId);
+                container.innerHTML = tasks.map((task, idx) => {
+                    const taskId = `W${id}-${gid}-${idx}`; const checked = state.completedTasks[taskId];
+                    return `<label class="flex items-start gap-4 cursor-pointer group"><input type="checkbox" onchange="toggleTask('${taskId}')" ${checked ? 'checked' : ''} class="mt-1 w-4 h-4 rounded border-stone-300 dark:border-stone-700 text-stone-900 dark:text-white focus:ring-stone-900 cursor-pointer"><span class="text-xs font-semibold text-stone-700 dark:text-stone-300 group-hover:text-stone-900 dark:group-hover:text-white transition-colors ${checked ? 'opacity-40 line-through' : ''}">${task}</span></label>`;
+                }).join('');
+            };
+            renderList('g1', 'tasks-g1'); renderList('g2', 'tasks-g2'); renderList('g3', 'tasks-g3'); updateWeekScore(id);
+        }
+
+        function toggleTask(taskId) { state.completedTasks[taskId] = !state.completedTasks[taskId]; save(); updateWeekScore(state.currentWeek); }
+        function saveReflection() { state.reflections[state.currentWeek] = document.getElementById('week-reflection').value; save(); }
+        function updateWeekScore(id) {
+            let d = 0; ['g1','g2','g3'].forEach(g => weeksData.find(w=>w.id===id).goals[g].forEach((_,i) => { if(state.completedTasks[`W${id}-${g}-${i}`]) d++; }));
+            document.getElementById('week-score-display').textContent = `${Math.round((d / 9) * 100)}%`;
+        }
+
+        function saveQuickAdd() {
+            const t = document.getElementById('qa-type').value; const i = document.getElementById('qa-input').value; if(!i) return;
+            state.logs.unshift({ date: new Date().toLocaleDateString(), text: i, category: t === 'log' ? "Asset" : t === 'content' ? "Social" : "Task" });
+            if(t === 'log') state.metrics.shipped++;
+            if(t === 'content') state.pipeline.unshift({ id: Date.now(), text: i, status: "AI Draft" });
+            document.getElementById('qa-input').value = ""; save(); renderLogs(); renderPipeline(); toggleQuickAdd();
+        }
+
+        function renderLogs() {
+            const today = new Date().toLocaleDateString();
+            document.getElementById('today-log-feed').innerHTML = state.logs.filter(l => l.date === today).map(l => `<div class="flex items-center justify-between p-4 bg-stone-50 dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800"><span class="text-xs font-bold text-stone-800 dark:text-white">${l.text}</span><span class="text-[9px] font-black text-stone-300 uppercase">PROVED</span></div>`).join('') || '<p class="text-center py-5 text-xs text-stone-400 italic">Log proof of work.</p>';
+            document.getElementById('full-log-body').innerHTML = state.logs.map(l => `<tr><td class="px-10 py-5 text-[10px] font-black text-stone-400">${l.date}</td><td class="px-10 py-5 font-bold text-stone-800 dark:text-stone-200">${l.text}</td><td class="px-10 py-5 font-bold"><span class="px-2 py-0.5 bg-stone-100 dark:bg-stone-800 rounded text-[9px] font-black text-stone-500 uppercase">${l.category}</span></td></tr>`).join('');
+            document.getElementById('vault-shipped-total').textContent = state.metrics.shipped;
+        }
+
+        function renderPipeline() {
+            document.getElementById('pipeline-grid').innerHTML = state.pipeline.map(c => `<div class="card p-6 shadow-sm group"><div class="flex justify-between mb-4"><span class="text-[9px] font-black text-stone-400 uppercase tracking-widest">Idea</span><span class="text-[8px] font-black px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-500 uppercase">${c.status}</span></div><p class="text-xs font-bold text-stone-900 dark:text-stone-100 leading-relaxed">${c.text}</p></div>`).join('') || '<p class="col-span-full py-20 text-center text-stone-400 italic text-xs font-bold uppercase tracking-widest">Empty</p>';
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('perfChart').getContext('2d');
+            const scores = Array.from({length: 12}, (_, i) => { let d = 0; ['g1','g2','g3'].forEach(g => { for(let t=0; t<3; t++) { if(state.completedTasks[`W${i+1}-${g}-${t}`]) d++; } }); return Math.round((d / 9) * 100); });
+            const rollingAvg = scores.map((s, i) => { const slice = scores.slice(Math.max(0, i-2), i+1); return Math.round(slice.reduce((a,b)=>a+b, 0) / slice.length); });
+            document.getElementById('stat-rolling-avg').textContent = rollingAvg[state.currentWeek-1] + "%";
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, { type: 'line', data: { labels: Array.from({length: 12}, (_, i) => `W${i+1}`), datasets: [{ label: 'Score', data: scores, borderColor: state.darkMode ? '#fff' : '#1c1917', borderWidth: 3, tension: 0.3 }] }, options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } } });
+        }
+
+        function updateGlobalStats() { const total = 12 * 9; const done = Object.values(state.completedTasks).filter(v => v).length; document.getElementById('nav-global-score').textContent = Math.round((done / total) * 100) + "%"; }
+        function toggleQuickAdd() { document.getElementById('qa-modal').classList.toggle('hidden'); }
+        function closeAI() { document.getElementById('ai-overlay').classList.add('hidden'); }
+        function exportState() { const blob = new Blob([JSON.stringify(state, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `operator-os-backup.json`; a.click(); }
+        function importState(e) { const r = new FileReader(); r.onload = (ev) => { try { state = JSON.parse(ev.target.result); save(); location.reload(); } catch(err) { alert("Invalid file."); } }; r.readAsText(e.target.files[0]); }
+        
+        function submitAudit() {
+            const score = document.getElementById('review-score-range').value;
+            if(score >= 85 && state.currentWeek < 12) {
+                if(confirm(`Elite Execution! Advance to W${state.currentWeek+1}?`)) setWeek(state.currentWeek+1);
+            } else {
+                alert(`Audit committed: ${score}%.`);
+            }
+            switchTab('today');
+        }
+
+        async function askAI(mode) {
+            const overlay = document.getElementById('ai-overlay'); overlay.classList.remove('hidden');
+            document.getElementById('ai-loading').classList.remove('hidden');
+            document.getElementById('ai-response').classList.add('hidden');
+            const week = weeksData.find(w => w.id === state.currentWeek);
+            let prompt = mode === 'content' ? `Draft 5 X posts for Week ${state.currentWeek}. JSON: { "posts": ["...", "..."] }` : `Advice for Week ${state.currentWeek}.`;
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: mode === 'content' ? "application/json" : "text/plain" } }) });
+                const data = await res.json();
+                document.getElementById('ai-loading').classList.add('hidden');
+                document.getElementById('ai-response').classList.remove('hidden');
+                document.getElementById('ai-content').textContent = mode === 'content' ? JSON.parse(data.candidates[0].content.parts[0].text).posts.join("\n\n") : data.candidates[0].content.parts[0].text;
+            } catch (err) { document.getElementById('ai-content').textContent = "Offline."; }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
